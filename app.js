@@ -13,10 +13,36 @@ let speed = 1/60;         // Speed (how many days added to time on each render p
 let mode;               // Drawing mode (gl.LINES or gl.TRIANGLES)
 let animation = true;   // Animation is running
 
-let zoom = 5;
-
+//Tilemap
 const LIGHT_GREY = vec3(0.5,0.5,0.5);
 const DARK_GREY = vec3(0.2,0.2,0.2);
+
+//Camera
+let zoom = 0.0;
+const camera_distance = 5.0;
+let camera_mode = "ISO";
+const CAMERA_POS ={
+    "ISO": {
+        "eye": [camera_distance, camera_distance, camera_distance],
+        "at": [0.0,0.0,0.0],
+        "up": [0.0,1.0,0.0]
+    }, //Isometric
+    "FRONT": {
+        "eye": [camera_distance, 0.0, 0.0],
+        "at": [0.0,0.0,0.0],
+        "up": [0.0,1.0,0.0]
+    }, //Front
+    "TOP": {
+        "eye": [0.0, camera_distance, 0.0],
+        "at": [0.0,0.0,0.0],
+        "up": [-1.0,0.0,0.0]
+    }, //Top
+    "PERFIL": {
+        "eye": [0.0, 0.0, camera_distance],
+        "at": [0.0,0.0,0.0],
+        "up": [0.0,1.0,0.0]
+    } //Perfil
+}
 
 function setup(shaders)
 {
@@ -27,9 +53,9 @@ function setup(shaders)
 
     let program = buildProgramFromSources(gl, shaders["shader.vert"], shaders["shader.frag"]);
 
-    let mProjection = ortho(-zoom*aspect,zoom*aspect, -zoom, zoom,-3*zoom,3*zoom);
+    let mProjection = ortho(-camera_distance*aspect,camera_distance*aspect, -camera_distance, camera_distance,-3*camera_distance,3*camera_distance);
 
-    mode = gl.TRIANGLES; 
+    mode = gl.LINES; 
 
     resize_canvas();
     window.addEventListener("resize", resize_canvas);
@@ -57,23 +83,33 @@ function setup(shaders)
             case 'ArrowDown':
                 break;
             case '1':
+                //Front view
+                camera_mode = "FRONT";
                 break;
             case '2':
+                //Top view
+                camera_mode = "TOP";
                 break;
             case '3':
+                //Perfil view
+                camera_mode = "PERFIL";
                 break;
             case '4':
+                //Isometric view
+                camera_mode = "ISO";
                 break;
             case '+':
+                zoom -= 0.5;
                 break;
             case '-':
+                zoom += 0.5;
                 break;
         }
         console.log("Pressed " + event.key);
         console.log(zoom);
     }
 
-    gl.clearColor(0.0, 0.0, 0.0, 1.0);
+    gl.clearColor(0.1, 0.1, 0.1, 1.0);
 
     //Initialize all used primitives
     CUBE.init(gl);
@@ -92,7 +128,7 @@ function setup(shaders)
         aspect = canvas.width / canvas.height;
 
         gl.viewport(0,0,canvas.width, canvas.height);
-        mProjection = ortho(-zoom*aspect,zoom*aspect, -zoom, zoom,-5*zoom,5*zoom);
+        mProjection = ortho(-camera_distance*aspect,camera_distance*aspect, -camera_distance, camera_distance,-5*camera_distance,5*camera_distance);
     }
 
     function uploadModelView()
@@ -100,68 +136,15 @@ function setup(shaders)
         gl.uniformMatrix4fv(gl.getUniformLocation(program, "mModelView"), false, flatten(modelView()));
     }
 
-    /*function Sun()
-    {
-        // Don't forget to scale the sun, rotate it around the y axis at the correct speed
-        // ..
-        multScale([SUN_DIAMETER, SUN_DIAMETER, SUN_DIAMETER]);
-        multRotationY(360*time/SUN_DAY);
-
-        // Send the current modelview matrix to the vertex shader
-        uploadModelView();
-
-        // Draw a sphere representing the sun
-        SPHERE.draw(gl, program, mode);
-    }
-
-    function Mercury(){
-
-        multScale([MERCURY_DIAMETER, MERCURY_DIAMETER, MERCURY_DIAMETER]);
-        multRotationY(360*time/MERCURY_DAY);
+    function Wheel(wheel_pos){
+        
+        multTranslation(wheel_pos);
+        //multScale([0.1,0.3,0.7]);
 
         uploadModelView();
 
         SPHERE.draw(gl, program, mode);
     }
-
-    function Venus(){
-
-        multScale([VENUS_DIAMETER, VENUS_DIAMETER, VENUS_DIAMETER]);
-        multRotationY(360*time/VENUS_DAY);
-
-        uploadModelView();
-
-        SPHERE.draw(gl, program, mode);
-    }
-
-    function Earth(){
-
-        multScale([EARTH_DIAMETER, EARTH_DIAMETER, EARTH_DIAMETER]);
-        multRotationY(360*time/EARTH_DAY);
-
-        uploadModelView();
-
-        SPHERE.draw(gl, program, mode);
-    }
-
-    function Moon(){
-        multScale([MOON_DIAMETER, MOON_DIAMETER, MOON_DIAMETER]);
-
-        uploadModelView();
-
-        SPHERE.draw(gl, program, mode);
-    }
-
-    function EarthMoon(){
-        pushMatrix();
-            Earth();
-        popMatrix();
-        pushMatrix();
-            multRotationY(360*time/MOON_YEAR);
-            multTranslation([MOON_ORBIT, 0,0]);
-            Moon();
-        popMatrix();
-    }*/
 
     function Tile(tile_pos,tile_scale){
         
@@ -173,14 +156,15 @@ function setup(shaders)
         CUBE.draw(gl, program, mode);
     }
 
-    function TileMap(n_tiles, cube_length){
-        for (var i = -n_tiles/2; i < n_tiles/2 ; i++){
-            for (var j = -n_tiles/2 ; j < n_tiles/2 ; j++){
+    function TileMap(n_tiles){
+        const cube_length = 1.0;
+        for (var i = (-n_tiles/2) ; i < n_tiles/2 ; i++){
+            for (var j = (-n_tiles/2) ; j < n_tiles/2 ; j++){
                 const color = (i+j)%2==0 ? LIGHT_GREY: DARK_GREY;
                 gl.uniform3fv(gl.getUniformLocation(program, "uColor"), flatten(color));
-                
+
                 pushMatrix();
-                    Tile([i*cube_length,0,j*cube_length],[cube_length,cube_length/5.0,cube_length]);
+                    Tile([i*cube_length + cube_length/2,-cube_length/2.0,j*cube_length+ cube_length/2],[cube_length,cube_length/5.0,cube_length]);
                 popMatrix();
             }
         }
@@ -198,12 +182,19 @@ function setup(shaders)
         gl.uniformMatrix4fv(gl.getUniformLocation(program, "mProjection"), false, flatten(mProjection));
     
         //Matrix camera
-        loadMatrix(lookAt([zoom,zoom/2,zoom], [0,0,0], [0,1,0]));
+        const curr_cam_mode = CAMERA_POS[camera_mode];
+        loadMatrix(lookAt(curr_cam_mode["eye"], curr_cam_mode["at"], curr_cam_mode["up"]));
         
         pushMatrix();
-            TileMap(20.0,1.0);
+            TileMap(7.0);
         popMatrix();
-
+        gl.uniform3fv(gl.getUniformLocation(program, "uColor"), flatten(vec3(1.0,1.0,1.0)));
+        pushMatrix();
+            Wheel([1.0,0.5,1.0]);
+        popMatrix();
+        pushMatrix();
+            Wheel([-1.0,0.5,-2.0]);
+        popMatrix();
         /*pushMatrix();
             Sun();
         popMatrix();
