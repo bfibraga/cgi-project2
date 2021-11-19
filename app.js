@@ -1,6 +1,6 @@
 import { buildProgramFromSources, loadShadersFromURLS, setupWebGL } from "../../libs/utils.js";
-import { ortho, lookAt, flatten } from "../../libs/MV.js";
-import {modelView, loadMatrix, multMatrix, multRotationY, multScale, pushMatrix, popMatrix, multTranslation} from "../../libs/stack.js";
+import { ortho, lookAt, flatten, vec3} from "../../libs/MV.js";
+import {modelView, loadMatrix, multMatrix, multRotationY, multScale, pushMatrix, popMatrix, multTranslation, multRotationX, multRotationZ} from "../../libs/stack.js";
 
 import * as SPHERE from '../../libs/sphere.js';
 import * as CUBE from '../../libs/cube.js';
@@ -13,9 +13,10 @@ let speed = 1/60;         // Speed (how many days added to time on each render p
 let mode;               // Drawing mode (gl.LINES or gl.TRIANGLES)
 let animation = true;   // Animation is running
 
-let VP_DISTANCE = 10;
+let zoom = 5;
 
-
+const LIGHT_GREY = vec3(0.5,0.5,0.5);
+const DARK_GREY = vec3(0.2,0.2,0.2);
 
 function setup(shaders)
 {
@@ -26,9 +27,9 @@ function setup(shaders)
 
     let program = buildProgramFromSources(gl, shaders["shader.vert"], shaders["shader.frag"]);
 
-    let mProjection = ortho(-VP_DISTANCE*aspect,VP_DISTANCE*aspect, -VP_DISTANCE, VP_DISTANCE,-3*VP_DISTANCE,3*VP_DISTANCE);
+    let mProjection = ortho(-zoom*aspect,zoom*aspect, -zoom, zoom,-3*zoom,3*zoom);
 
-    mode = gl.LINES; 
+    mode = gl.TRIANGLES; 
 
     resize_canvas();
     window.addEventListener("resize", resize_canvas);
@@ -38,10 +39,12 @@ function setup(shaders)
             case 'w':
                 break;
             case 'W':
+                mode = gl.LINES;
                 break;
             case 's':
                 break;
             case 'S':
+                mode = gl.TRIANGLES;
                 break;
             case 'a':
                 break;
@@ -67,6 +70,7 @@ function setup(shaders)
                 break;
         }
         console.log("Pressed " + event.key);
+        console.log(zoom);
     }
 
     gl.clearColor(0.0, 0.0, 0.0, 1.0);
@@ -88,7 +92,7 @@ function setup(shaders)
         aspect = canvas.width / canvas.height;
 
         gl.viewport(0,0,canvas.width, canvas.height);
-        mProjection = ortho(-VP_DISTANCE*aspect,VP_DISTANCE*aspect, -VP_DISTANCE, VP_DISTANCE,-3*VP_DISTANCE,3*VP_DISTANCE);
+        mProjection = ortho(-zoom*aspect,zoom*aspect, -zoom, zoom,-5*zoom,5*zoom);
     }
 
     function uploadModelView()
@@ -159,24 +163,24 @@ function setup(shaders)
         popMatrix();
     }*/
 
-    function SingleTile(x,y,z,length){
+    function Tile(tile_pos,tile_scale){
         
-        multScale([length,length,length]);
-        multTranslation([x,y,z]);
+        multScale(tile_scale);
+        multTranslation(tile_pos);
         
         uploadModelView();
 
         CUBE.draw(gl, program, mode);
     }
 
-    function FloorTiles(){
-        let n_tiles = 16.0;
-        let cube_length = 1.0;
-
-        for (var i = 0.0 ; i < n_tiles*cube_length ; i += cube_length){
-            for (var j = 0.0 ; j < n_tiles*cube_length ; j += cube_length){
+    function TileMap(n_tiles, cube_length){
+        for (var i = -n_tiles/2; i < n_tiles/2 ; i++){
+            for (var j = -n_tiles/2 ; j < n_tiles/2 ; j++){
+                const color = (i+j)%2==0 ? LIGHT_GREY: DARK_GREY;
+                gl.uniform3fv(gl.getUniformLocation(program, "uColor"), flatten(color));
+                
                 pushMatrix();
-                    SingleTile(i,j,0,cube_length);
+                    Tile([i*cube_length,0,j*cube_length],[cube_length,cube_length/5.0,cube_length]);
                 popMatrix();
             }
         }
@@ -194,22 +198,10 @@ function setup(shaders)
         gl.uniformMatrix4fv(gl.getUniformLocation(program, "mProjection"), false, flatten(mProjection));
     
         //Matrix camera
-        loadMatrix(lookAt([0,VP_DISTANCE,VP_DISTANCE], [0,0,0], [0,1,0]));
+        loadMatrix(lookAt([zoom,zoom/2,zoom], [0,0,0], [0,1,0]));
         
         pushMatrix();
-            /*pushMatrix();
-            SingleTile(0.0,0.0,0.0,1.0);
-            popMatrix();
-            pushMatrix();
-            SingleTile(0.0,2.0,0.0,1.0);
-            popMatrix();
-            pushMatrix();
-            SingleTile(2.0,0.0,0.0,1.0);
-            popMatrix();
-            pushMatrix();
-            SingleTile(2.0,2.0,0.0,1.0);
-            popMatrix();*/
-            FloorTiles();
+            TileMap(20.0,1.0);
         popMatrix();
 
         /*pushMatrix();
