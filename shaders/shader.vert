@@ -6,7 +6,9 @@ attribute vec3 vNormal;
 
 varying vec3 fNormal;
 
+uniform vec3 uColor;
+
 void main() {
     gl_Position = mProjection * mModelView * vPosition;
-    fNormal = vNormal;
+    fNormal = uColor;
 }

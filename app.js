@@ -4,6 +4,8 @@ import {modelView, loadMatrix, multMatrix, multRotationY, multScale, pushMatrix,
 
 import * as SPHERE from '../../libs/sphere.js';
 import * as CUBE from '../../libs/cube.js';
+import * as TORUS from '../../libs/torus.js';
+import * as CYLINDER from '../../libs/cylinder.js';
 
 /** @type WebGLRenderingContext */
 let gl;
@@ -16,6 +18,7 @@ let animation = true;   // Animation is running
 //Tilemap
 const LIGHT_GREY = vec3(0.5,0.5,0.5);
 const DARK_GREY = vec3(0.2,0.2,0.2);
+const nTiles = 16.0;
 
 //Camera
 let zoom = 0.0;
@@ -55,7 +58,7 @@ function setup(shaders)
 
     let mProjection = ortho(-camera_distance*aspect,camera_distance*aspect, -camera_distance, camera_distance,-3*camera_distance,3*camera_distance);
 
-    mode = gl.LINES; 
+    mode = gl.TRIANGLES; 
 
     resize_canvas();
     window.addEventListener("resize", resize_canvas);
@@ -109,11 +112,13 @@ function setup(shaders)
         console.log(zoom);
     }
 
-    gl.clearColor(0.1, 0.1, 0.1, 1.0);
+    gl.clearColor(0.6, 0.1, 0.1, 1.0);
 
     //Initialize all used primitives
     CUBE.init(gl);
     SPHERE.init(gl);
+    TORUS.init(gl);
+    CYLINDER.init(gl);
 
     gl.enable(gl.DEPTH_TEST);   // Enables Z-buffer depth test
     
@@ -136,20 +141,60 @@ function setup(shaders)
         gl.uniformMatrix4fv(gl.getUniformLocation(program, "mModelView"), false, flatten(modelView()));
     }
 
-    function Wheel(wheel_pos){
+    function SingleWheel(wheel_posY){
+        gl.uniform3fv(gl.getUniformLocation(program, "uColor"), flatten(vec3(0.09,0.09,0.09)));
+        const wheel_length = 1.0;
         
-        multTranslation(wheel_pos);
-        //multScale([0.1,0.3,0.7]);
+        multTranslation([0.0,wheel_posY,0.0]);
+        multScale([wheel_length,wheel_length*2,wheel_length]);
 
         uploadModelView();
 
-        SPHERE.draw(gl, program, mode);
+        TORUS.draw(gl, program, mode);
+    }
+    
+    function Axis(){
+        gl.uniform3fv(gl.getUniformLocation(program, "uColor"), flatten(vec3(0.4,0.5,0.09)));
+        const axis_length = 0.3;
+        const axis_height = 13.35;
+        
+        multScale([axis_length,axis_length*axis_height,axis_length]);
+
+        uploadModelView();
+
+        CYLINDER.draw(gl, program, mode);
     }
 
-    function Tile(tile_pos,tile_scale){
-        
-        multScale(tile_scale);
-        multTranslation(tile_pos);
+    function WheelAndAxis(){
+        const distance = 2;
+        pushMatrix();
+            SingleWheel(-distance);
+        popMatrix();
+        pushMatrix();
+            SingleWheel(distance);
+        popMatrix();
+        pushMatrix();
+            Axis();
+        popMatrix();
+    }
+
+    function Wheels(){
+        gl.uniform3fv(gl.getUniformLocation(program, "uColor"), flatten(vec3(0.09,0.09,0.09)));
+        const distance = 1.5;
+        for(let i = -2; i < 2; i++){
+            pushMatrix();
+                multTranslation([i*distance,0.65,0.0]);
+                multRotationX(90.0);
+                WheelAndAxis();
+            popMatrix();
+        }
+    }
+
+    function Tile(xFactor,zFactor){
+        const cube_length = 1.0;
+
+        multScale([cube_length,cube_length/5.0,cube_length]);
+        multTranslation([xFactor*cube_length + cube_length/2,-cube_length/2.0,zFactor*cube_length+ cube_length/2]);
         
         uploadModelView();
 
@@ -157,14 +202,12 @@ function setup(shaders)
     }
 
     function TileMap(n_tiles){
-        const cube_length = 1.0;
         for (var i = (-n_tiles/2) ; i < n_tiles/2 ; i++){
             for (var j = (-n_tiles/2) ; j < n_tiles/2 ; j++){
                 const color = (i+j)%2==0 ? LIGHT_GREY: DARK_GREY;
                 gl.uniform3fv(gl.getUniformLocation(program, "uColor"), flatten(color));
-
                 pushMatrix();
-                    Tile([i*cube_length + cube_length/2,-cube_length/2.0,j*cube_length+ cube_length/2],[cube_length,cube_length/5.0,cube_length]);
+                    Tile(i,j);
                 popMatrix();
             }
         }
@@ -186,33 +229,11 @@ function setup(shaders)
         loadMatrix(lookAt(curr_cam_mode["eye"], curr_cam_mode["at"], curr_cam_mode["up"]));
         
         pushMatrix();
-            TileMap(7.0);
-        popMatrix();
-        gl.uniform3fv(gl.getUniformLocation(program, "uColor"), flatten(vec3(1.0,1.0,1.0)));
-        pushMatrix();
-            Wheel([1.0,0.5,1.0]);
+            TileMap(nTiles);
         popMatrix();
         pushMatrix();
-            Wheel([-1.0,0.5,-2.0]);
+            Wheels();
         popMatrix();
-        /*pushMatrix();
-            Sun();
-        popMatrix();
-        pushMatrix();
-            multRotationY(360*time/MERCURY_YEAR);
-            multTranslation([MERCURY_ORBIT, 0, 0]); 
-            Mercury();
-        popMatrix();
-        pushMatrix();
-            multRotationY(360*time/VENUS_YEAR);
-            multTranslation([VENUS_ORBIT, 0, 0]); 
-            Venus();
-        popMatrix();
-        pushMatrix();
-            multRotationY(360*time/EARTH_YEAR);
-            multTranslation([EARTH_ORBIT, 0, 0]);
-            EarthMoon();
-        popMatrix();*/
 
     }
 }
