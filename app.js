@@ -141,7 +141,19 @@ function setup(shaders)
         gl.uniformMatrix4fv(gl.getUniformLocation(program, "mModelView"), false, flatten(modelView()));
     }
 
-    function SingleWheel(wheel_posY){
+    function Alloy(){
+        gl.uniform3fv(gl.getUniformLocation(program, "uColor"), flatten(vec3(0.7,0.5,0.1)));
+        const alloy_length = 0.3;
+        const alloy_height = 0.7;
+
+        multScale([alloy_height, alloy_length, alloy_height]);
+        
+        uploadModelView();
+        
+        CYLINDER.draw(gl, program, mode);
+    }
+
+    function Tire(wheel_posY){
         gl.uniform3fv(gl.getUniformLocation(program, "uColor"), flatten(vec3(0.09,0.09,0.09)));
         const wheel_length = 1.0;
         
@@ -151,6 +163,13 @@ function setup(shaders)
         uploadModelView();
 
         TORUS.draw(gl, program, mode);
+    }
+
+    function SingleWheel(wheel_posY){
+        Tire(wheel_posY);
+        pushMatrix();
+            Alloy();
+        popMatrix();
     }
     
     function Axis(){
