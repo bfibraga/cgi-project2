@@ -3,6 +3,7 @@ import { ortho, lookAt, flatten } from "../../libs/MV.js";
 import {modelView, loadMatrix, multMatrix, multRotationY, multScale, pushMatrix, popMatrix, multTranslation} from "../../libs/stack.js";
 
 import * as SPHERE from '../../libs/sphere.js';
+import * as CUBE from '../../libs/cube.js';
 
 /** @type WebGLRenderingContext */
 let gl;
@@ -12,33 +13,7 @@ let speed = 1/60;         // Speed (how many days added to time on each render p
 let mode;               // Drawing mode (gl.LINES or gl.TRIANGLES)
 let animation = true;   // Animation is running
 
-const PLANET_SCALE = 10;    // scale that will apply to each planet and satellite
-const ORBIT_SCALE = 1/60;   // scale that will apply to each orbit around the sun
-
-const SUN_DIAMETER = 1391900;
-const SUN_DAY = 24.47; // At the equator. The poles are slower as the sun is gaseous
-
-const MERCURY_DIAMETER = 4866*PLANET_SCALE;
-const MERCURY_ORBIT = 57950000*ORBIT_SCALE;
-const MERCURY_YEAR = 87.97;
-const MERCURY_DAY = 58.646;
-
-const VENUS_DIAMETER = 12106*PLANET_SCALE;
-const VENUS_ORBIT = 108110000*ORBIT_SCALE;
-const VENUS_YEAR = 224.70;
-const VENUS_DAY = 243.018;
-
-const EARTH_DIAMETER = 12742*PLANET_SCALE;
-const EARTH_ORBIT = 149570000*ORBIT_SCALE;
-const EARTH_YEAR = 365.26;
-const EARTH_DAY = 0.99726968;
-
-const MOON_DIAMETER = 3474*PLANET_SCALE;
-const MOON_ORBIT = 363396*ORBIT_SCALE*60;
-const MOON_YEAR = 28;
-const MOON_DAY = 0;
-
-const VP_DISTANCE = EARTH_ORBIT;
+let VP_DISTANCE = 10;
 
 
 
@@ -61,25 +36,45 @@ function setup(shaders)
     document.onkeydown = function(event) {
         switch(event.key) {
             case 'w':
-                mode = gl.LINES; 
+                break;
+            case 'W':
                 break;
             case 's':
-                mode = gl.TRIANGLES;
                 break;
-            case 'p':
-                animation = !animation;
+            case 'S':
+                break;
+            case 'a':
+                break;
+            case 'd':
+                break;
+            case ' ':
+                break;
+            case 'ArrowUp':
+                break;
+            case 'ArrowDown':
+                break;
+            case '1':
+                break;
+            case '2':
+                break;
+            case '3':
+                break;
+            case '4':
                 break;
             case '+':
-                if(animation) speed *= 1.1;
                 break;
             case '-':
-                if(animation) speed /= 1.1;
                 break;
         }
+        console.log("Pressed " + event.key);
     }
 
     gl.clearColor(0.0, 0.0, 0.0, 1.0);
+
+    //Initialize all used primitives
+    CUBE.init(gl);
     SPHERE.init(gl);
+
     gl.enable(gl.DEPTH_TEST);   // Enables Z-buffer depth test
     
     window.requestAnimationFrame(render);
@@ -101,7 +96,7 @@ function setup(shaders)
         gl.uniformMatrix4fv(gl.getUniformLocation(program, "mModelView"), false, flatten(modelView()));
     }
 
-    function Sun()
+    /*function Sun()
     {
         // Don't forget to scale the sun, rotate it around the y axis at the correct speed
         // ..
@@ -162,8 +157,30 @@ function setup(shaders)
             multTranslation([MOON_ORBIT, 0,0]);
             Moon();
         popMatrix();
+    }*/
+
+    function SingleTile(x,y,z,length){
+        
+        multScale([length,length,length]);
+        multTranslation([x,y,z]);
+        
+        uploadModelView();
+
+        CUBE.draw(gl, program, mode);
     }
 
+    function FloorTiles(){
+        let n_tiles = 16.0;
+        let cube_length = 1.0;
+
+        for (var i = 0.0 ; i < n_tiles*cube_length ; i += cube_length){
+            for (var j = 0.0 ; j < n_tiles*cube_length ; j += cube_length){
+                pushMatrix();
+                    SingleTile(i,j,0,cube_length);
+                popMatrix();
+            }
+        }
+    }
 
     function render()
     {
@@ -179,8 +196,23 @@ function setup(shaders)
         //Matrix camera
         loadMatrix(lookAt([0,VP_DISTANCE,VP_DISTANCE], [0,0,0], [0,1,0]));
         
-
         pushMatrix();
+            /*pushMatrix();
+            SingleTile(0.0,0.0,0.0,1.0);
+            popMatrix();
+            pushMatrix();
+            SingleTile(0.0,2.0,0.0,1.0);
+            popMatrix();
+            pushMatrix();
+            SingleTile(2.0,0.0,0.0,1.0);
+            popMatrix();
+            pushMatrix();
+            SingleTile(2.0,2.0,0.0,1.0);
+            popMatrix();*/
+            FloorTiles();
+        popMatrix();
+
+        /*pushMatrix();
             Sun();
         popMatrix();
         pushMatrix();
@@ -197,7 +229,7 @@ function setup(shaders)
             multRotationY(360*time/EARTH_YEAR);
             multTranslation([EARTH_ORBIT, 0, 0]);
             EarthMoon();
-        popMatrix();
+        popMatrix();*/
 
     }
 }
