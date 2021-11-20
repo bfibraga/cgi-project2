@@ -29,19 +29,30 @@ const wheel_length = 1.0;
 const wheel_circunference = wheel_length * Math.PI;
 const wheel_velocity = wheel_circunference / distance;
 var wheel_pos = 0.0;
-const wheel_x_distance = 2;
+const wheel_x_distance = 2.5;
 const wheel_y_distance = 1.5;
 const alloy_length = 0.3;
 const alloy_height = 0.7;
 
 //Axis
 const axis_length = 0.3;
-const axis_height = 4;
+const axis_height = 4.5;
 
 //Chassi
-const base_length = 3.0;
-const base_height = 1.6;
+const base_length = axis_height;
+const base_height = 1.0;
 const base_width = 8.0;
+
+//Turret
+const turret_length = 4.0;
+const turret_height = 3.0;
+
+//Canon
+const canon_length = 2.0;
+const canon_width = 0.15;
+let canon_inclination = 90;
+const canon_y_translation = 0.2;
+const canon_x_translation = 0.8;
 
 //Tank
 let tank_pos = [0.0,wheel_length/2.0 + 0.19*wheel_length,0.0];
@@ -49,7 +60,7 @@ let tank_pos = [0.0,wheel_length/2.0 + 0.19*wheel_length,0.0];
 
 //Camera
 let zoom = 0.0;
-const camera_distance = 5.0;
+const camera_distance = 7.0;
 let camera_mode = "ISO";
 const CAMERA_POS ={
     "ISO": {
@@ -85,7 +96,7 @@ function setup(shaders)
 
     let mProjection = ortho(-(camera_distance+nTiles)*aspect,(camera_distance+nTiles)*aspect, -(camera_distance+nTiles), (camera_distance+nTiles),-3*(camera_distance+nTiles),3*(camera_distance+nTiles));
 
-    mode = gl.TRIANGLES; 
+    mode = gl.LINES; 
 
     resize_canvas();
     window.addEventListener("resize", resize_canvas);
@@ -93,11 +104,15 @@ function setup(shaders)
     document.onkeydown = function(event) {
         switch(event.key) {
             case 'w':
+                if(canon_inclination < 120)
+                    canon_inclination++;
                 break;
             case 'W':
                 mode = gl.LINES;
                 break;
             case 's':
+                if(canon_inclination > 90)
+                    canon_inclination--;
                 break;
             case 'S':
                 mode = gl.TRIANGLES;
@@ -143,8 +158,6 @@ function setup(shaders)
                 zoom += 0.5;
                 break;
         }
-        console.log("Pressed " + event.key);
-        console.log(zoom);
     }
 
     gl.clearColor(165/255, 205/255, 222/255, 1.0);
@@ -232,7 +245,7 @@ function setup(shaders)
         gl.uniform3fv(gl.getUniformLocation(program, "uColor"), flatten(vec3(0.09,0.09,0.09))); 
         for(let i = -nWheels/2; i < nWheels/2; i++){
             pushMatrix();
-                multTranslation([i*wheel_y_distance+wheel_y_distance/2.0,0.0 ,0.0]);
+                multTranslation([i*wheel_y_distance+wheel_y_distance/2.0, 0.0 ,0.0]);
                 multRotationX(90.0);
                 WheelAndAxis();
             popMatrix();
@@ -242,19 +255,77 @@ function setup(shaders)
     function Base(){
         gl.uniform3fv(gl.getUniformLocation(program, "uColor"), flatten(vec3(0.7,0.7,0.7)));
 
-        multScale([base_width,base_height,base_length]);
+        pushMatrix();
+            multScale([base_width,base_height,base_length]);
+
+            uploadModelView();
+
+            CUBE.draw(gl, program, mode);
+        popMatrix();
+        pushMatrix();
+            gl.uniform3fv(gl.getUniformLocation(program, "uColor"), flatten(vec3(0.6,0.6,0.6)));
+            multTranslation([0.0,1.6-base_height/2.0,0.0]);
+            
+            pushMatrix();
+
+                multScale([4.0,1.6,4.0+wheel_length]);
+
+                uploadModelView();
+
+                CUBE.draw(gl, program, mode);
+            popMatrix();
+
+            pushMatrix();
+            const alpha = 1.0/(Math.tan(1.6 / ((base_length - 4.0)/2.0) ));
+            
+            multTranslation([base_length/2.0, 0.0, 0.0]);
+            multRotationZ(-alpha);
+
+            uploadModelView();
+        
+            CUBE.draw(gl, program, mode);
+            popMatrix();
+
+            
+        popMatrix();
+        
+        
+    }
+
+    function Canon(){
+        gl.uniform3fv(gl.getUniformLocation(program, "uColor"), flatten(vec3(0.8,0.2,0.1)));
+        
+        multTranslation([canon_x_translation,canon_y_translation,0.0]);
+        multRotationZ(canon_inclination);
+        multScale([canon_width, canon_length, canon_width]);
 
         uploadModelView();
 
-        CUBE.draw(gl, program, mode);
+        CYLINDER.draw(gl, program, mode);
+    }
+
+    function Turret(){
+        gl.uniform3fv(gl.getUniformLocation(program, "uColor"), flatten(vec3(0.5,0.2,0.7)));
+
+        multTranslation([0.0,base_height*2,0.0]);
+        multScale([turret_length, turret_height, turret_length]);
+
+        uploadModelView();
+
+        SPHERE.draw(gl, program, mode);
+ 
+        pushMatrix();
+            Canon();
+        popMatrix(); 
     }
 
     function Chassi(){
+        multTranslation([0.0, wheel_length/2.0 - 0.2*wheel_length, 0.0]);
         pushMatrix();
-            multTranslation([0.0, wheel_length/2.0, 0.0]);
-            pushMatrix();
-                Base();
-            popMatrix();
+            Base();
+        popMatrix();
+        pushMatrix();
+            Turret();
         popMatrix();
     }
 
