@@ -16,9 +16,36 @@ let mode;               // Drawing mode (gl.LINES or gl.TRIANGLES)
 let animation = true;   // Animation is running
 
 //Tilemap
-const LIGHT_GREY = vec3(0.5,0.5,0.5);
-const DARK_GREY = vec3(0.2,0.2,0.2);
-const nTiles = 16.0;
+const LIGHT_GREY = vec3(58/255,76/255,58/255);
+const DARK_GREY = vec3(38/255,56/255,36/255);
+const nTiles = 25.0;
+const cube_length = 1.0;
+const cube_height = cube_length/6.0;
+
+//Wheels
+const nWheels = 5;
+let distance = 0.1;
+const wheel_length = 1.0;
+const wheel_circunference = wheel_length * Math.PI;
+const wheel_velocity = wheel_circunference / distance;
+var wheel_pos = 0.0;
+const wheel_x_distance = 2;
+const wheel_y_distance = 1.5;
+const alloy_length = 0.3;
+const alloy_height = 0.7;
+
+//Axis
+const axis_length = 0.3;
+const axis_height = 4;
+
+//Chassi
+const base_length = 3.0;
+const base_height = 1.6;
+const base_width = 8.0;
+
+//Tank
+let tank_pos = [0.0,wheel_length/2.0 + 0.19*wheel_length,0.0];
+
 
 //Camera
 let zoom = 0.0;
@@ -31,17 +58,17 @@ const CAMERA_POS ={
         "up": [0.0,1.0,0.0]
     }, //Isometric
     "FRONT": {
-        "eye": [camera_distance, 0.0, 0.0],
+        "eye": [camera_distance+nTiles/2.0, 0.0, 0.0],
         "at": [0.0,0.0,0.0],
         "up": [0.0,1.0,0.0]
     }, //Front
     "TOP": {
-        "eye": [0.0, camera_distance, 0.0],
+        "eye": [0.0, camera_distance+nTiles/2.0, 0.0],
         "at": [0.0,0.0,0.0],
         "up": [-1.0,0.0,0.0]
     }, //Top
     "PERFIL": {
-        "eye": [0.0, 0.0, camera_distance],
+        "eye": [0.0, 0.0, camera_distance+nTiles/2.0],
         "at": [0.0,0.0,0.0],
         "up": [0.0,1.0,0.0]
     } //Perfil
@@ -56,7 +83,7 @@ function setup(shaders)
 
     let program = buildProgramFromSources(gl, shaders["shader.vert"], shaders["shader.frag"]);
 
-    let mProjection = ortho(-camera_distance*aspect,camera_distance*aspect, -camera_distance, camera_distance,-3*camera_distance,3*camera_distance);
+    let mProjection = ortho(-(camera_distance+nTiles)*aspect,(camera_distance+nTiles)*aspect, -(camera_distance+nTiles), (camera_distance+nTiles),-3*(camera_distance+nTiles),3*(camera_distance+nTiles));
 
     mode = gl.TRIANGLES; 
 
@@ -82,8 +109,16 @@ function setup(shaders)
             case ' ':
                 break;
             case 'ArrowUp':
+                if(tank_pos[0] > (-nTiles/2 + wheel_y_distance * 3)){
+                    tank_pos[0] -= distance;
+                    wheel_pos -= wheel_velocity;
+                }
                 break;
             case 'ArrowDown':
+                if(tank_pos[0] < (nTiles/2 - wheel_y_distance * 3)){
+                    tank_pos[0] += distance;
+                    wheel_pos += wheel_velocity;
+                }
                 break;
             case '1':
                 //Front view
@@ -112,7 +147,7 @@ function setup(shaders)
         console.log(zoom);
     }
 
-    gl.clearColor(0.6, 0.1, 0.1, 1.0);
+    gl.clearColor(165/255, 205/255, 222/255, 1.0);
 
     //Initialize all used primitives
     CUBE.init(gl);
@@ -143,8 +178,6 @@ function setup(shaders)
 
     function Alloy(){
         gl.uniform3fv(gl.getUniformLocation(program, "uColor"), flatten(vec3(0.7,0.5,0.1)));
-        const alloy_length = 0.3;
-        const alloy_height = 0.7;
 
         multScale([alloy_height, alloy_length, alloy_height]);
         
@@ -155,7 +188,6 @@ function setup(shaders)
 
     function Tire(wheel_posY){
         gl.uniform3fv(gl.getUniformLocation(program, "uColor"), flatten(vec3(0.09,0.09,0.09)));
-        const wheel_length = 1.0;
         
         multTranslation([0.0,wheel_posY,0.0]);
         multScale([wheel_length,wheel_length*2,wheel_length]);
@@ -174,10 +206,9 @@ function setup(shaders)
     
     function Axis(){
         gl.uniform3fv(gl.getUniformLocation(program, "uColor"), flatten(vec3(0.4,0.5,0.09)));
-        const axis_length = 0.3;
-        const axis_height = 13.35;
         
-        multScale([axis_length,axis_length*axis_height,axis_length]);
+        
+        multScale([axis_length,axis_height,axis_length]);
 
         uploadModelView();
 
@@ -185,12 +216,12 @@ function setup(shaders)
     }
 
     function WheelAndAxis(){
-        const distance = 2;
+        multRotationY(wheel_pos);
         pushMatrix();
-            SingleWheel(-distance);
+            SingleWheel(-wheel_x_distance);
         popMatrix();
         pushMatrix();
-            SingleWheel(distance);
+            SingleWheel(wheel_x_distance);
         popMatrix();
         pushMatrix();
             Axis();
@@ -198,21 +229,47 @@ function setup(shaders)
     }
 
     function Wheels(){
-        gl.uniform3fv(gl.getUniformLocation(program, "uColor"), flatten(vec3(0.09,0.09,0.09)));
-        const distance = 1.5;
-        for(let i = -2; i < 2; i++){
+        gl.uniform3fv(gl.getUniformLocation(program, "uColor"), flatten(vec3(0.09,0.09,0.09))); 
+        for(let i = -nWheels/2; i < nWheels/2; i++){
             pushMatrix();
-                multTranslation([i*distance,0.65,0.0]);
+                multTranslation([i*wheel_y_distance+wheel_y_distance/2.0,0.0 ,0.0]);
                 multRotationX(90.0);
                 WheelAndAxis();
             popMatrix();
         }
     }
 
-    function Tile(xFactor,zFactor){
-        const cube_length = 1.0;
+    function Base(){
+        gl.uniform3fv(gl.getUniformLocation(program, "uColor"), flatten(vec3(0.7,0.7,0.7)));
 
-        multScale([cube_length,cube_length/5.0,cube_length]);
+        multScale([base_width,base_height,base_length]);
+
+        uploadModelView();
+
+        CUBE.draw(gl, program, mode);
+    }
+
+    function Chassi(){
+        pushMatrix();
+            multTranslation([0.0, wheel_length/2.0, 0.0]);
+            pushMatrix();
+                Base();
+            popMatrix();
+        popMatrix();
+    }
+
+    function Tank(){
+        multTranslation(tank_pos);
+        pushMatrix();
+            Wheels();
+        popMatrix();
+        pushMatrix();
+            Chassi();
+        popMatrix();
+    }
+
+    function Tile(xFactor,zFactor){
+        multScale([cube_length,cube_height,cube_length]);
         multTranslation([xFactor*cube_length + cube_length/2,-cube_length/2.0,zFactor*cube_length+ cube_length/2]);
         
         uploadModelView();
@@ -220,9 +277,9 @@ function setup(shaders)
         CUBE.draw(gl, program, mode);
     }
 
-    function TileMap(n_tiles){
-        for (var i = (-n_tiles/2) ; i < n_tiles/2 ; i++){
-            for (var j = (-n_tiles/2) ; j < n_tiles/2 ; j++){
+    function TileMap(){
+        for (var i = (-nTiles/2) ; i < nTiles/2 ; i++){
+            for (var j = (-nTiles/2) ; j < nTiles/2 ; j++){
                 const color = (i+j)%2==0 ? LIGHT_GREY: DARK_GREY;
                 gl.uniform3fv(gl.getUniformLocation(program, "uColor"), flatten(color));
                 pushMatrix();
@@ -246,12 +303,12 @@ function setup(shaders)
         //Matrix camera
         const curr_cam_mode = CAMERA_POS[camera_mode];
         loadMatrix(lookAt(curr_cam_mode["eye"], curr_cam_mode["at"], curr_cam_mode["up"]));
-        
+
         pushMatrix();
-            TileMap(nTiles);
+            TileMap();
         popMatrix();
         pushMatrix();
-            Wheels();
+            Tank();
         popMatrix();
 
     }
