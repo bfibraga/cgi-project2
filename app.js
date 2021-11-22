@@ -1,11 +1,12 @@
 import { buildProgramFromSources, loadShadersFromURLS, setupWebGL } from "../../libs/utils.js";
-import { ortho, lookAt, flatten, vec3} from "../../libs/MV.js";
+import { ortho, lookAt, flatten, vec3, add} from "../../libs/MV.js";
 import {modelView, loadMatrix, multMatrix, multRotationY, multScale, pushMatrix, popMatrix, multTranslation, multRotationX, multRotationZ} from "../../libs/stack.js";
 
 import * as SPHERE from '../../libs/sphere.js';
 import * as CUBE from '../../libs/cube.js';
 import * as TORUS from '../../libs/torus.js';
 import * as CYLINDER from '../../libs/cylinder.js';
+import * as PRISM from '../../libs/prism.js';
 
 /** @type WebGLRenderingContext */
 let gl;
@@ -15,12 +16,17 @@ let speed = 1/60;         // Speed (how many days added to time on each render p
 let mode;               // Drawing mode (gl.LINES or gl.TRIANGLES)
 let animation = true;   // Animation is running
 
-//Tilemap
-const LIGHT_GREY = vec3(58/255,76/255,58/255);
-const DARK_GREY = vec3(38/255,56/255,36/255);
+//---Tilemap---
+const LIGHT = vec3(58/255,76/255,58/255);
+const DARK = vec3(38/255,56/255,36/255);
 const nTiles = 25.0;
 const cube_length = 1.0;
 const cube_height = cube_length/6.0;
+
+//---Tank---
+//Axis
+const axis_length = 0.3;
+const axis_height = 4;
 
 //Wheels
 const nWheels = 5;
@@ -29,61 +35,65 @@ const wheel_length = 1.0;
 const wheel_circunference = wheel_length * Math.PI;
 const wheel_velocity = wheel_circunference / distance;
 var wheel_pos = 0.0;
-const wheel_x_distance = 2.5;
+const wheel_x_distance = axis_height/2.0;
 const wheel_y_distance = 1.5;
 const alloy_length = 0.3;
 const alloy_height = 0.7;
 
-//Axis
-const axis_length = 0.3;
-const axis_height = 4.5;
-
-//Chassi
+//Body
+//Base
 const base_length = axis_height;
 const base_height = 1.0;
 const base_width = 8.0;
 
+const top_shell_length = base_length;
+const top_shell_height = 1.0;
+const top_shell_width = base_width/2;
+
+const front_shell_length = 1.0;
+const front_shell_width = 1.0;
+
 //Turret
-const turret_length = 4.0;
+const turret_length = top_shell_width-0.5;
 const turret_height = 3.0;
 
 //Canon
 const canon_length = 2.0;
 const canon_width = 0.15;
-let canon_inclination = 90;
-const canon_y_translation = 0.2;
-const canon_x_translation = 0.8;
+let canon_rx = 90;
+let canon_ry = 90;
 
 //Tank
 let tank_pos = [0.0,wheel_length/2.0 + 0.19*wheel_length,0.0];
 
-
 //Camera
 let zoom = 0.0;
-const camera_distance = 7.0;
+let camera_distance = 7.0;
 let camera_mode = "ISO";
 const CAMERA_POS ={
-    "ISO": {
+    "ISO": { //Isometric
         "eye": [camera_distance, camera_distance, camera_distance],
         "at": [0.0,0.0,0.0],
         "up": [0.0,1.0,0.0]
-    }, //Isometric
-    "FRONT": {
+    }, 
+    "FRONT": { //Front
         "eye": [camera_distance+nTiles/2.0, 0.0, 0.0],
         "at": [0.0,0.0,0.0],
         "up": [0.0,1.0,0.0]
-    }, //Front
-    "TOP": {
+    }, 
+    "TOP": { //Top
         "eye": [0.0, camera_distance+nTiles/2.0, 0.0],
         "at": [0.0,0.0,0.0],
         "up": [-1.0,0.0,0.0]
-    }, //Top
-    "PERFIL": {
+    }, 
+    "PERFIL": { //Perfil
         "eye": [0.0, 0.0, camera_distance+nTiles/2.0],
         "at": [0.0,0.0,0.0],
         "up": [0.0,1.0,0.0]
-    } //Perfil
+    } 
 }
+
+let camera_coords = CAMERA_POS[camera_mode]["eye"];
 
 function setup(shaders)
 {
@@ -96,7 +106,8 @@ function setup(shaders)
 
     let mProjection = ortho(-(camera_distance+nTiles)*aspect,(camera_distance+nTiles)*aspect, -(camera_distance+nTiles), (camera_distance+nTiles),-3*(camera_distance+nTiles),3*(camera_distance+nTiles));
 
-    mode = gl.LINES; 
+    mode = gl.TRIANGLES; 
+    camera_mode = "ISO";
 
     resize_canvas();
     window.addEventListener("resize", resize_canvas);
@@ -104,22 +115,28 @@ function setup(shaders)
     document.onkeydown = function(event) {
         switch(event.key) {
             case 'w':
-                if(canon_inclination < 120)
-                    canon_inclination++;
+                //if(canon_inclination < 120)
+                    canon_rx++;
+                    console.log(canon_rx);
                 break;
             case 'W':
                 mode = gl.LINES;
                 break;
             case 's':
-                if(canon_inclination > 90)
-                    canon_inclination--;
+                //if(canon_rx <= 90)
+                    canon_rx--;
+                    console.log(canon_rx);
                 break;
             case 'S':
                 mode = gl.TRIANGLES;
                 break;
             case 'a':
+                canon_ry++;
+                console.log(canon_ry);
                 break;
             case 'd':
+                canon_ry--;
+                console.log(canon_ry);
                 break;
             case ' ':
                 break;
@@ -152,10 +169,10 @@ function setup(shaders)
                 camera_mode = "ISO";
                 break;
             case '+':
-                zoom -= 0.5;
+                zoom += 0.5;
                 break;
             case '-':
-                zoom += 0.5;
+                zoom -= 0.5;
                 break;
         }
     }
@@ -167,6 +184,7 @@ function setup(shaders)
     SPHERE.init(gl);
     TORUS.init(gl);
     CYLINDER.init(gl);
+    PRISM.init(gl);
 
     gl.enable(gl.DEPTH_TEST);   // Enables Z-buffer depth test
     
@@ -252,51 +270,71 @@ function setup(shaders)
         }
     }
 
-    function Base(){
-        gl.uniform3fv(gl.getUniformLocation(program, "uColor"), flatten(vec3(0.7,0.7,0.7)));
+    function BottomBase(){
+        multScale([base_width,base_height,base_length]);
 
-        pushMatrix();
-            multScale([base_width,base_height,base_length]);
+        uploadModelView();
 
-            uploadModelView();
+        CUBE.draw(gl, program, mode);
+    }
 
-            CUBE.draw(gl, program, mode);
-        popMatrix();
-        pushMatrix();
-            gl.uniform3fv(gl.getUniformLocation(program, "uColor"), flatten(vec3(0.6,0.6,0.6)));
-            multTranslation([0.0,1.6-base_height/2.0,0.0]);
+    function TopBase(){
+        gl.uniform3fv(gl.getUniformLocation(program, "uColor"), flatten(vec3(0.6,0.6,0.6)));
+            //multTranslation([0.0,1.6-base_height/2.0,0.0]);
             
             pushMatrix();
 
-                multScale([4.0,1.6,4.0+wheel_length]);
+                multScale([top_shell_width,top_shell_height,top_shell_length+wheel_length/2.0]);
 
                 uploadModelView();
 
                 CUBE.draw(gl, program, mode);
             popMatrix();
 
-            pushMatrix();
-            const alpha = 1.0/(Math.tan(1.6 / ((base_length - 4.0)/2.0) ));
-            
-            multTranslation([base_length/2.0, 0.0, 0.0]);
-            multRotationZ(-alpha);
+            let front_shell_pos = [(top_shell_width + front_shell_width)/2.0, 0.0, 0.0];
+            const curr_width = (base_width-top_shell_width)/2.0;
+            const angle = 90;
 
-            uploadModelView();
-        
-            CUBE.draw(gl, program, mode);
+            //angle = Math.tan(curr_height/curr_width);
+
+            front_shell_pos[0] += curr_width/4.0;
+            
+            pushMatrix();
+                multTranslation(front_shell_pos);
+                multRotationY(-angle);
+                multScale([top_shell_length + wheel_length/2.0 ,top_shell_height,curr_width]);
+                uploadModelView();
+            
+                PRISM.draw(gl, program, mode);
             popMatrix();
 
+            front_shell_pos[0] *= -1;
+
+            pushMatrix();
+                multTranslation(front_shell_pos);
+                multRotationY(angle);
+                multScale([top_shell_length + wheel_length/2.0 ,top_shell_height,curr_width]);
+                uploadModelView();
             
+                PRISM.draw(gl, program, mode);
+            popMatrix();
+    }
+
+    function Base(){
+        gl.uniform3fv(gl.getUniformLocation(program, "uColor"), flatten(vec3(0.7,0.7,0.7)));
+
+        pushMatrix();
+            BottomBase();
         popMatrix();
-        
-        
+        multTranslation([0.0,(base_height+top_shell_height)/2.0,0.0]);
+        pushMatrix();
+            TopBase();
+        popMatrix();
     }
 
     function Canon(){
         gl.uniform3fv(gl.getUniformLocation(program, "uColor"), flatten(vec3(0.8,0.2,0.1)));
-        
-        multTranslation([canon_x_translation,canon_y_translation,0.0]);
-        multRotationZ(canon_inclination);
+            
         multScale([canon_width, canon_length, canon_width]);
 
         uploadModelView();
@@ -307,23 +345,27 @@ function setup(shaders)
     function Turret(){
         gl.uniform3fv(gl.getUniformLocation(program, "uColor"), flatten(vec3(0.5,0.2,0.7)));
 
-        multTranslation([0.0,base_height*2,0.0]);
+        multRotationY(canon_ry);
+        
+        multTranslation([0.0,top_shell_height/2.0,0.0]);
         multScale([turret_length, turret_height, turret_length]);
 
         uploadModelView();
 
         SPHERE.draw(gl, program, mode);
- 
+        
+        multTranslation([0.0,canon_width/2.0,0.0]);
         pushMatrix();
+            multRotationX(canon_rx+50*time);
+            multTranslation([0.0,1.0,0.0]);
             Canon();
         popMatrix(); 
     }
 
-    function Chassi(){
-        multTranslation([0.0, wheel_length/2.0 - 0.2*wheel_length, 0.0]);
+    function Body(){
+        multTranslation([0.0, base_height/2.0, 0.0]);
         pushMatrix();
             Base();
-        popMatrix();
         pushMatrix();
             Turret();
         popMatrix();
@@ -335,7 +377,7 @@ function setup(shaders)
             Wheels();
         popMatrix();
         pushMatrix();
-            Chassi();
+            Body();
         popMatrix();
     }
 
@@ -351,7 +393,7 @@ function setup(shaders)
     function TileMap(){
         for (var i = (-nTiles/2) ; i < nTiles/2 ; i++){
             for (var j = (-nTiles/2) ; j < nTiles/2 ; j++){
-                const color = (i+j)%2==0 ? LIGHT_GREY: DARK_GREY;
+                const color = (i+j)%2==0 ? LIGHT: DARK;
                 gl.uniform3fv(gl.getUniformLocation(program, "uColor"), flatten(color));
                 pushMatrix();
                     Tile(i,j);
@@ -373,7 +415,8 @@ function setup(shaders)
     
         //Matrix camera
         const curr_cam_mode = CAMERA_POS[camera_mode];
-        loadMatrix(lookAt(curr_cam_mode["eye"], curr_cam_mode["at"], curr_cam_mode["up"]));
+        let cam_pos = vec3(curr_cam_mode["eye"][0] - zoom, curr_cam_mode["eye"][1] - zoom, curr_cam_mode["eye"][2] - zoom );
+        loadMatrix(lookAt(cam_pos, curr_cam_mode["at"], curr_cam_mode["up"]));
 
         pushMatrix();
             TileMap();
