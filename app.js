@@ -1,5 +1,5 @@
 import { buildProgramFromSources, loadShadersFromURLS, setupWebGL } from "../../libs/utils.js";
-import { ortho, lookAt, flatten, vec3, add} from "../../libs/MV.js";
+import { ortho, lookAt, flatten, vec3, add, mult, subtract, normalize} from "../../libs/MV.js";
 import {modelView, loadMatrix, multMatrix, multRotationY, multScale, pushMatrix, popMatrix, multTranslation, multRotationX, multRotationZ} from "../../libs/stack.js";
 
 import * as SPHERE from '../../libs/sphere.js';
@@ -13,13 +13,13 @@ let gl;
 
 let time = 0;           // Global simulation time in days
 let speed = 1/60;         // Speed (how many days added to time on each render pass
-let mode;               // Drawing mode (gl.LINES or gl.TRIANGLES)
+let mode;            // Drawing mode (gl.LINES or gl.TRIANGLES)
 let animation = true;   // Animation is running
 
 //---Tilemap---
 const LIGHT = vec3(58/255,76/255,58/255);
 const DARK = vec3(38/255,56/255,36/255);
-const nTiles = 25.0;
+const nTiles = 30.0;
 const cube_length = 1.0;
 const cube_height = cube_length/6.0;
 
@@ -32,7 +32,7 @@ const axis_height = 4;
 const nWheels = 5;
 let distance = 0.1;
 const wheel_length = 1.0;
-const wheel_circunference = wheel_length * Math.PI;
+const wheel_circunference = (wheel_length + 2*0.2*wheel_length) * Math.PI;
 const wheel_velocity = wheel_circunference / distance;
 var wheel_pos = 0.0;
 const wheel_x_distance = axis_height/2.0;
@@ -58,10 +58,12 @@ const turret_length = top_shell_width-0.5;
 const turret_height = 3.0;
 
 //Canon
-const canon_length = 2.0;
-const canon_width = 0.15;
+const canon_length = 5.0;
+const canon_width = 0.5;
 let canon_rx = 90;
 let canon_ry = 90;
+const canon_x_max = 90;
+const canon_x_min = 60;
 
 //Tank
 let tank_pos = [0.0,wheel_length/2.0 + 0.19*wheel_length,0.0];
@@ -70,30 +72,40 @@ let tank_pos = [0.0,wheel_length/2.0 + 0.19*wheel_length,0.0];
 let zoom = 0.0;
 let camera_distance = 7.0;
 let camera_mode = "ISO";
-const CAMERA_POS ={
+let CAMERA_POS ={
     "ISO": { //Isometric
         "eye": [camera_distance, camera_distance, camera_distance],
         "at": [0.0,0.0,0.0],
         "up": [0.0,1.0,0.0]
     }, 
     "FRONT": { //Front
-        "eye": [camera_distance+nTiles/2.0, 0.0, 0.0],
+        "eye": [camera_distance, 0.0, 0.0],
         "at": [0.0,0.0,0.0],
         "up": [0.0,1.0,0.0]
     }, 
     "TOP": { //Top
-        "eye": [0.0, camera_distance+nTiles/2.0, 0.0],
+        "eye": [0.0, camera_distance, 0.0],
         "at": [0.0,0.0,0.0],
         "up": [-1.0,0.0,0.0]
     }, 
     "PERFIL": { //Perfil
-        "eye": [0.0, 0.0, camera_distance+nTiles/2.0],
+        "eye": [0.0, 0.0, camera_distance],
         "at": [0.0,0.0,0.0],
         "up": [0.0,1.0,0.0]
     } 
 }
 
-let camera_coords = CAMERA_POS[camera_mode]["eye"];
+function updateCameraEye(new_value){
+    CAMERA_POS["ISO"]["eye"] = [new_value, new_value, new_value];
+    CAMERA_POS["FRONT"]["eye"] = [new_value, 0.0, 0.0];
+    CAMERA_POS["TOP"]["eye"] = [0.0, new_value, 0.0];
+    CAMERA_POS["PERFIL"]["eye"] = [0.0, 0.0, new_value];
+
+    console.log(CAMERA_POS["ISO"]["eye"]);
+    console.log(CAMERA_POS["FRONT"]["eye"]);
+    console.log(CAMERA_POS["TOP"]["eye"]);
+    console.log(CAMERA_POS["PERFIL"]["eye"]);
+}
 
 function setup(shaders)
 {
@@ -115,16 +127,16 @@ function setup(shaders)
     document.onkeydown = function(event) {
         switch(event.key) {
             case 'w':
-                //if(canon_inclination < 120)
-                    canon_rx++;
+                if(canon_rx > canon_x_min)
+                    canon_rx--;
                     console.log(canon_rx);
                 break;
             case 'W':
                 mode = gl.LINES;
                 break;
             case 's':
-                //if(canon_rx <= 90)
-                    canon_rx--;
+                if(canon_rx < canon_x_max)
+                    canon_rx++;
                     console.log(canon_rx);
                 break;
             case 'S':
@@ -139,17 +151,18 @@ function setup(shaders)
                 console.log(canon_ry);
                 break;
             case ' ':
+
                 break;
             case 'ArrowUp':
-                if(tank_pos[0] > (-nTiles/2 + wheel_y_distance * 3)){
-                    tank_pos[0] -= distance;
-                    wheel_pos -= wheel_velocity;
+                if(tank_pos[0] < (nTiles/2 - wheel_y_distance*nWheels/2.0)){
+                    tank_pos[0] += distance;
+                    wheel_pos += wheel_velocity;
                 }
                 break;
             case 'ArrowDown':
-                if(tank_pos[0] < (nTiles/2 - wheel_y_distance * 3)){
-                    tank_pos[0] += distance;
-                    wheel_pos += wheel_velocity;
+                if(tank_pos[0] > (-nTiles/2 + wheel_y_distance*nWheels/2.0 )){
+                    tank_pos[0] -= distance;
+                    wheel_pos -= wheel_velocity;
                 }
                 break;
             case '1':
@@ -169,10 +182,16 @@ function setup(shaders)
                 camera_mode = "ISO";
                 break;
             case '+':
-                zoom += 0.5;
+                if (camera_distance > 5.0){
+                    camera_distance -= 0.5;
+                    console.log(camera_distance);
+                    updateCameraEye(camera_distance);
+                }
                 break;
             case '-':
-                zoom -= 0.5;
+                camera_distance += 0.5;
+                console.log(camera_distance);
+                updateCameraEye(camera_distance);
                 break;
         }
     }
@@ -280,7 +299,6 @@ function setup(shaders)
 
     function TopBase(){
         gl.uniform3fv(gl.getUniformLocation(program, "uColor"), flatten(vec3(0.6,0.6,0.6)));
-            //multTranslation([0.0,1.6-base_height/2.0,0.0]);
             
             pushMatrix();
 
@@ -295,11 +313,10 @@ function setup(shaders)
             const curr_width = (base_width-top_shell_width)/2.0;
             const angle = 90;
 
-            //angle = Math.tan(curr_height/curr_width);
-
             front_shell_pos[0] += curr_width/4.0;
             
             pushMatrix();
+                gl.uniform3fv(gl.getUniformLocation(program, "uColor"), flatten(vec3(0.3,0.3,0.3)));
                 multTranslation(front_shell_pos);
                 multRotationY(-angle);
                 multScale([top_shell_length + wheel_length/2.0 ,top_shell_height,curr_width]);
@@ -321,7 +338,7 @@ function setup(shaders)
     }
 
     function Base(){
-        gl.uniform3fv(gl.getUniformLocation(program, "uColor"), flatten(vec3(0.7,0.7,0.7)));
+        gl.uniform3fv(gl.getUniformLocation(program, "uColor"), flatten(vec3(0.2,0.2,0.2)));
 
         pushMatrix();
             BottomBase();
@@ -332,14 +349,34 @@ function setup(shaders)
         popMatrix();
     }
 
-    function Canon(){
-        gl.uniform3fv(gl.getUniformLocation(program, "uColor"), flatten(vec3(0.8,0.2,0.1)));
-            
-        multScale([canon_width, canon_length, canon_width]);
+    function Canon(pos){
+        gl.uniform3fv(gl.getUniformLocation(program, "uColor"), flatten(vec3(0.7,0.1,0.0)));
+        pushMatrix();
+            multTranslation(pos);
+            pushMatrix();
+                //gl.uniform3fv(gl.getUniformLocation(program, "uColor"), flatten(vec3(0.8,0.2,0.1)));
+                multScale([canon_width, canon_length, canon_width]);
 
-        uploadModelView();
+                uploadModelView();
 
-        CYLINDER.draw(gl, program, mode);
+                CYLINDER.draw(gl, program, mode);
+            popMatrix();
+            pushMatrix();
+                gl.uniform3fv(gl.getUniformLocation(program, "uColor"), flatten(vec3(0.6,0.0,0.0)));
+                multTranslation([0.0,turret_height/2.0-canon_length/2.0,0.0]);
+                multScale([canon_width+0.1,0.9,canon_width+0.1]);
+                uploadModelView();
+
+                CYLINDER.draw(gl, program, mode);
+            popMatrix();
+            pushMatrix();
+                multTranslation([0.0,canon_length/2.0,0.0]);
+                multScale([0.5,0.9,0.5]);
+                uploadModelView();
+
+                CUBE.draw(gl, program, mode);
+            popMatrix();
+        popMatrix();
     }
 
     function Turret(){
@@ -348,18 +385,28 @@ function setup(shaders)
         multRotationY(canon_ry);
         
         multTranslation([0.0,top_shell_height/2.0,0.0]);
-        multScale([turret_length, turret_height, turret_length]);
+        pushMatrix();
+            multScale([turret_length, turret_height, turret_length]);
 
-        uploadModelView();
+            uploadModelView();
 
-        SPHERE.draw(gl, program, mode);
-        
+            SPHERE.draw(gl, program, mode);
+        popMatrix();
+        pushMatrix();
+            gl.uniform3fv(gl.getUniformLocation(program, "uColor"), flatten(vec3(0.0,0.1,0.8)));
+            multTranslation([0.0,top_shell_height,0.0]);
+
+            uploadModelView();
+
+            CYLINDER.draw(gl, program, mode);
+        popMatrix();
         multTranslation([0.0,canon_width/2.0,0.0]);
         pushMatrix();
-            multRotationX(canon_rx+50*time);
-            multTranslation([0.0,1.0,0.0]);
-            Canon();
-        popMatrix(); 
+            multRotationX(canon_rx);
+            multTranslation([0.0,canon_length/2.0,0.0]);
+            Canon([0.6,0.0,0.0]);
+            Canon([-0.6,0.0,0.0]);
+        popMatrix();
     }
 
     function Body(){
@@ -412,11 +459,11 @@ function setup(shaders)
         gl.useProgram(program);
         
         gl.uniformMatrix4fv(gl.getUniformLocation(program, "mProjection"), false, flatten(mProjection));
-    
+        
         //Matrix camera
         const curr_cam_mode = CAMERA_POS[camera_mode];
-        let cam_pos = vec3(curr_cam_mode["eye"][0] - zoom, curr_cam_mode["eye"][1] - zoom, curr_cam_mode["eye"][2] - zoom );
-        loadMatrix(lookAt(cam_pos, curr_cam_mode["at"], curr_cam_mode["up"]));
+        loadMatrix(lookAt(curr_cam_mode["eye"], curr_cam_mode["at"], curr_cam_mode["up"]));
+        mProjection = ortho(-camera_distance*aspect,camera_distance*aspect, -camera_distance, camera_distance,-5*camera_distance,5*camera_distance);
 
         pushMatrix();
             TileMap();
