@@ -64,12 +64,15 @@ let canon_rx = 90;
 let canon_ry = 90;
 const canon_x_max = 90;
 const canon_x_min = 60;
+const canon_x = 0.6;
 
 //Tank
 let tank_pos = [0.0,wheel_length/2.0 + 0.19*wheel_length,0.0];
 
+//Projectiles
+let projectiles = []; 
+
 //Camera
-let zoom = 0.0;
 let camera_distance = 7.0;
 let camera_mode = "ISO";
 let CAMERA_POS ={
@@ -100,11 +103,6 @@ function updateCameraEye(new_value){
     CAMERA_POS["FRONT"]["eye"] = [new_value, 0.0, 0.0];
     CAMERA_POS["TOP"]["eye"] = [0.0, new_value, 0.0];
     CAMERA_POS["PERFIL"]["eye"] = [0.0, 0.0, new_value];
-
-    console.log(CAMERA_POS["ISO"]["eye"]);
-    console.log(CAMERA_POS["FRONT"]["eye"]);
-    console.log(CAMERA_POS["TOP"]["eye"]);
-    console.log(CAMERA_POS["PERFIL"]["eye"]);
 }
 
 function setup(shaders)
@@ -129,7 +127,6 @@ function setup(shaders)
             case 'w':
                 if(canon_rx > canon_x_min)
                     canon_rx--;
-                    console.log(canon_rx);
                 break;
             case 'W':
                 mode = gl.LINES;
@@ -137,21 +134,21 @@ function setup(shaders)
             case 's':
                 if(canon_rx < canon_x_max)
                     canon_rx++;
-                    console.log(canon_rx);
                 break;
             case 'S':
                 mode = gl.TRIANGLES;
                 break;
             case 'a':
                 canon_ry++;
-                console.log(canon_ry);
                 break;
             case 'd':
                 canon_ry--;
-                console.log(canon_ry);
                 break;
             case ' ':
-
+                projectiles.push({
+                    "pos": tank_pos[0],
+                    "rot_y": canon_ry - 90,
+                    "rot_z": -canon_rx + 90});
                 break;
             case 'ArrowUp':
                 if(tank_pos[0] < (nTiles/2 - wheel_y_distance*nWheels/2.0)){
@@ -184,13 +181,11 @@ function setup(shaders)
             case '+':
                 if (camera_distance > 5.0){
                     camera_distance -= 0.5;
-                    console.log(camera_distance);
                     updateCameraEye(camera_distance);
                 }
                 break;
             case '-':
                 camera_distance += 0.5;
-                console.log(camera_distance);
                 updateCameraEye(camera_distance);
                 break;
         }
@@ -349,12 +344,39 @@ function setup(shaders)
         popMatrix();
     }
 
+    function Projectiles(){
+        gl.uniform3fv(gl.getUniformLocation(program, "uColor"), flatten(vec3(0.0,0.0,0.0)));
+        multTranslation([0.0,turret_height,0.0]);
+        for(let i = 0; i < projectiles.length; i++){
+            pushMatrix();
+                multTranslation([projectiles[i]["pos"],0.0,0.0]);
+                multRotationY(projectiles[i]["rot_y"]);
+                multRotationZ(projectiles[i]["rot_z"]);
+                multTranslation([canon_length + canon_length/2,0.0, 0.0]);
+                multScale([0.4,0.4,0.4]);
+                pushMatrix();
+                    multTranslation([0.0, 0.0, canon_x*2.5]);
+
+                    uploadModelView();
+
+                    SPHERE.draw(gl, program, mode);
+                popMatrix();
+                pushMatrix();
+                    multTranslation([0.0,0.0,-canon_x*2.5]);
+
+                    uploadModelView();
+
+                    SPHERE.draw(gl, program, mode);
+                popMatrix();
+            popMatrix();
+        }
+    }
+
     function Canon(pos){
         gl.uniform3fv(gl.getUniformLocation(program, "uColor"), flatten(vec3(0.7,0.1,0.0)));
         pushMatrix();
             multTranslation(pos);
             pushMatrix();
-                //gl.uniform3fv(gl.getUniformLocation(program, "uColor"), flatten(vec3(0.8,0.2,0.1)));
                 multScale([canon_width, canon_length, canon_width]);
 
                 uploadModelView();
@@ -404,8 +426,8 @@ function setup(shaders)
         pushMatrix();
             multRotationX(canon_rx);
             multTranslation([0.0,canon_length/2.0,0.0]);
-            Canon([0.6,0.0,0.0]);
-            Canon([-0.6,0.0,0.0]);
+            Canon([canon_x,0.0,0.0]);
+            Canon([-canon_x,0.0,0.0]);
         popMatrix();
     }
 
@@ -419,12 +441,14 @@ function setup(shaders)
     }
 
     function Tank(){
-        multTranslation(tank_pos);
         pushMatrix();
-            Wheels();
-        popMatrix();
-        pushMatrix();
-            Body();
+            multTranslation(tank_pos);
+            pushMatrix();
+                Wheels();
+            popMatrix();
+            pushMatrix();
+                Body();
+            popMatrix();
         popMatrix();
     }
 
@@ -470,6 +494,9 @@ function setup(shaders)
         popMatrix();
         pushMatrix();
             Tank();
+        popMatrix();
+        pushMatrix();
+            Projectiles();
         popMatrix();
 
     }
