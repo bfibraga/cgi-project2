@@ -71,6 +71,9 @@ let tank_pos = [0.0,wheel_length/2.0 + 0.19*wheel_length,0.0];
 
 //Projectiles
 let projectiles = []; 
+const accelaration = vec3(0.1, 0.1, 0.0);
+const init_speed = vec3(1/1000, 1/1000, 0.0);
+const init_pos = vec3(canon_length, 0.0, 0.0);
 
 //Camera
 let camera_distance = 7.0;
@@ -148,7 +151,9 @@ function setup(shaders)
                 projectiles.push({
                     "pos": tank_pos[0],
                     "rot_y": canon_ry - 90,
-                    "rot_z": -canon_rx + 90});
+                    "rot_z": -canon_rx + 90,
+                    "time" : vec3(1.0, 1.0, 0.0),
+                    "ui" : 0.1});
                 break;
             case 'ArrowUp':
                 if(tank_pos[0] < (nTiles/2 - wheel_y_distance*nWheels/2.0)){
@@ -346,13 +351,25 @@ function setup(shaders)
 
     function Projectiles(){
         gl.uniform3fv(gl.getUniformLocation(program, "uColor"), flatten(vec3(0.0,0.0,0.0)));
-        multTranslation([0.0,turret_height,0.0]);
+        multTranslation([0.0,turret_height - 0.05,0.0]);
         for(let i = 0; i < projectiles.length; i++){
             pushMatrix();
                 multTranslation([projectiles[i]["pos"],0.0,0.0]);
                 multRotationY(projectiles[i]["rot_y"]);
                 multRotationZ(projectiles[i]["rot_z"]);
-                multTranslation([canon_length + canon_length/2,0.0, 0.0]);
+                
+                let vt = mult(init_speed, projectiles[i]["time"]);
+                let at2 = mult(accelaration, mult(vec3(0.5,0.5,0.0), mult(projectiles[i]["time"], projectiles[i]["time"])));
+                let xpos = add(init_pos, add(vt, at2));
+                multTranslation(xpos);
+                let at = mult(accelaration, projectiles[i]["time"]);
+                let vpos = add(init_speed,  at);
+                projectiles[i]["time"] = add(projectiles[i]["time"], vpos);
+
+                /*let xpos = add(init_pos, vec3(projectiles[i]["ui"], -projectiles[i]["ui"], 0.0));
+                projectiles[i]["ui"] += 0.1;
+                multTranslation(xpos);*/
+
                 multScale([0.4,0.4,0.4]);
                 pushMatrix();
                     multTranslation([0.0, 0.0, canon_x*2.5]);
