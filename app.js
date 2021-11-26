@@ -7,6 +7,7 @@ import * as CUBE from '../../libs/cube.js';
 import * as TORUS from '../../libs/torus.js';
 import * as CYLINDER from '../../libs/cylinder.js';
 import * as PRISM from '../../libs/prism.js';
+import * as PYRAMID from '../../libs/pyramid.js'
 
 /** @type WebGLRenderingContext */
 let gl;
@@ -29,7 +30,7 @@ const axis_length = 0.3;
 const axis_height = 4;
 
 //Wheels
-const nWheels = 5;
+const nWheels = 7;
 let distance = 0.1;
 const wheel_length = 1.0;
 const wheel_circunference = (wheel_length + 2*0.2*wheel_length) * Math.PI;
@@ -44,17 +45,17 @@ const alloy_height = 0.7;
 //Base
 const base_length = axis_height;
 const base_height = 1.0;
-const base_width = 8.0;
+const base_width = (nWheels)*wheel_y_distance+wheel_y_distance/2.0;
 
 const top_shell_length = base_length;
 const top_shell_height = 1.0;
 const top_shell_width = base_width/2;
 
-const front_shell_length = 1.0;
+const front_shell_length = (base_length-top_shell_length)/2.0;
 const front_shell_width = 1.0;
 
 //Turret
-const turret_length = top_shell_width-0.5;
+const turret_length = Math.min(top_shell_width, top_shell_length)-0.2;
 const turret_height = 3.0;
 
 //Canon
@@ -71,6 +72,7 @@ let tank_pos = [0.0,wheel_length/2.0 + 0.19*wheel_length,0.0];
 
 //Projectiles
 let projectiles = []; 
+const projectile_radious = 0.4;
 
 //Camera
 let camera_distance = 7.0;
@@ -127,6 +129,7 @@ function setup(shaders)
             case 'w':
                 if(canon_rx > canon_x_min)
                     canon_rx--;
+                console.log(canon_rx);
                 break;
             case 'W':
                 mode = gl.LINES;
@@ -134,6 +137,7 @@ function setup(shaders)
             case 's':
                 if(canon_rx < canon_x_max)
                     canon_rx++;
+                console.log(canon_rx);
                 break;
             case 'S':
                 mode = gl.TRIANGLES;
@@ -146,9 +150,10 @@ function setup(shaders)
                 break;
             case ' ':
                 projectiles.push({
-                    "pos": tank_pos[0],
+                    "pos": [tank_pos[0] + canon_length, tank_pos[1] + base_height + top_shell_height + (canon_width/2.0) - canon_length*Math.tan(90-canon_rx)/2.0, tank_pos[2]],
                     "rot_y": canon_ry - 90,
-                    "rot_z": -canon_rx + 90});
+                    "rot_z": 90 - canon_rx});
+                console.log(canon_length*Math.sin(canon_rx-180));
                 break;
             case 'ArrowUp':
                 if(tank_pos[0] < (nTiles/2 - wheel_y_distance*nWheels/2.0)){
@@ -179,10 +184,10 @@ function setup(shaders)
                 camera_mode = "ISO";
                 break;
             case '+':
-                if (camera_distance > 5.0){
+                //if (camera_distance > 5.0){
                     camera_distance -= 0.5;
                     updateCameraEye(camera_distance);
-                }
+                //}
                 break;
             case '-':
                 camera_distance += 0.5;
@@ -199,6 +204,7 @@ function setup(shaders)
     TORUS.init(gl);
     CYLINDER.init(gl);
     PRISM.init(gl);
+    PYRAMID.init(gl);
 
     gl.enable(gl.DEPTH_TEST);   // Enables Z-buffer depth test
     
@@ -252,7 +258,6 @@ function setup(shaders)
     function Axis(){
         gl.uniform3fv(gl.getUniformLocation(program, "uColor"), flatten(vec3(0.4,0.5,0.09)));
         
-        
         multScale([axis_length,axis_height,axis_length]);
 
         uploadModelView();
@@ -292,6 +297,16 @@ function setup(shaders)
         CUBE.draw(gl, program, mode);
     }
 
+    function Capot(pos, rotation){
+        gl.uniform3fv(gl.getUniformLocation(program, "uColor"), flatten(vec3(0.3,0.3,0.3)));
+        multTranslation(pos);
+        multRotationY(rotation);
+        multScale([top_shell_length + wheel_length/2.0 ,top_shell_height,(base_width-top_shell_width)/2.0]);
+        uploadModelView();
+            
+        PRISM.draw(gl, program, mode);
+    }
+
     function TopBase(){
         gl.uniform3fv(gl.getUniformLocation(program, "uColor"), flatten(vec3(0.6,0.6,0.6)));
             
@@ -303,32 +318,15 @@ function setup(shaders)
 
                 CUBE.draw(gl, program, mode);
             popMatrix();
-
-            let front_shell_pos = [(top_shell_width + front_shell_width)/2.0, 0.0, 0.0];
-            const curr_width = (base_width-top_shell_width)/2.0;
-            const angle = 90;
-
-            front_shell_pos[0] += curr_width/4.0;
             
             pushMatrix();
-                gl.uniform3fv(gl.getUniformLocation(program, "uColor"), flatten(vec3(0.3,0.3,0.3)));
-                multTranslation(front_shell_pos);
-                multRotationY(-angle);
-                multScale([top_shell_length + wheel_length/2.0 ,top_shell_height,curr_width]);
-                uploadModelView();
-            
-                PRISM.draw(gl, program, mode);
+                Capot([(3.0*top_shell_width/4.0), 0.0, 0.0], -90);
             popMatrix();
 
-            front_shell_pos[0] *= -1;
-
             pushMatrix();
-                multTranslation(front_shell_pos);
-                multRotationY(angle);
-                multScale([top_shell_length + wheel_length/2.0 ,top_shell_height,curr_width]);
-                uploadModelView();
-            
-                PRISM.draw(gl, program, mode);
+                Capot([-(3.0*top_shell_width/4.0), 0.0, 0.0], 90);
+            popMatrix();
+
             popMatrix();
     }
 
@@ -344,30 +342,23 @@ function setup(shaders)
         popMatrix();
     }
 
+    function Projectile(id){
+        pushMatrix();
+            multTranslation(projectiles[id]["pos"]);
+            multScale([projectile_radious, projectile_radious*2, projectile_radious]);
+            uploadModelView();
+
+            SPHERE.draw(gl, program, mode);            
+        popMatrix();
+    }
+
     function Projectiles(){
         gl.uniform3fv(gl.getUniformLocation(program, "uColor"), flatten(vec3(0.0,0.0,0.0)));
-        multTranslation([0.0,turret_height,0.0]);
+        
         for(let i = 0; i < projectiles.length; i++){
             pushMatrix();
-                multTranslation([projectiles[i]["pos"],0.0,0.0]);
-                multRotationY(projectiles[i]["rot_y"]);
-                multRotationZ(projectiles[i]["rot_z"]);
-                multTranslation([canon_length + canon_length/2,0.0, 0.0]);
-                multScale([0.4,0.4,0.4]);
-                pushMatrix();
-                    multTranslation([0.0, 0.0, canon_x*2.5]);
-
-                    uploadModelView();
-
-                    SPHERE.draw(gl, program, mode);
-                popMatrix();
-                pushMatrix();
-                    multTranslation([0.0,0.0,-canon_x*2.5]);
-
-                    uploadModelView();
-
-                    SPHERE.draw(gl, program, mode);
-                popMatrix();
+                Projectile(i);
+                Projectile(i);
             popMatrix();
         }
     }
@@ -406,7 +397,7 @@ function setup(shaders)
 
         multRotationY(canon_ry);
         
-        multTranslation([0.0,top_shell_height/2.0,0.0]);
+        multTranslation([0.0,(base_height/2.0)+top_shell_height,0.0]);
         pushMatrix();
             multScale([turret_length, turret_height, turret_length]);
 

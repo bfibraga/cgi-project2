@@ -5,10 +5,12 @@ attribute vec4 vPosition;
 attribute vec3 vNormal;
 
 varying vec3 fNormal;
+varying vec3 fColor;
 
 uniform vec3 uColor;
 
 void main() {
     gl_Position = mProjection * mModelView * vPosition;
-    fNormal = uColor;
+    fNormal = vNormal;
+    fColor = uColor;
 }
