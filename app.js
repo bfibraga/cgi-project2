@@ -17,9 +17,9 @@ let mode;            // Drawing mode (gl.LINES or gl.TRIANGLES)
 let animation = true;   // Animation is running
 
 //---Tilemap---
-const LIGHT = vec3(200/255,200/255,200/255);
-const DARK = vec3(30/255,30/255,30/255);
-const nTiles = 50.0;
+const LIGHT = vec3(58/255,76/255,58/255);
+const DARK = vec3(38/255,56/255,36/255);
+const nTiles = 25.0;
 const cube_length = 1.0;
 const cube_height = cube_length/6.0;
 
@@ -37,10 +37,10 @@ const axis_length = wheel_length/3.0;
 const axis_height = 4.0;
 
 const wheel_x_distance = axis_height/2.0;
-const wheel_y_distance = wheel_length+2*0.2*wheel_length+0.1;
+const wheel_y_distance = wheel_length+2*0.2*wheel_length;
 
 var wheel_angle = 0.0;
-const distance = 0.01*tank_scale;
+const distance = 0.07*tank_scale;
 const angle_travel = distance / 2*(wheel_length*tank_scale + 0.2*(wheel_length*tank_scale));
 
 //Body
@@ -60,8 +60,13 @@ const front_shell_length = (base_length-top_shell_length)/2.0;
 const front_shell_width = 1.0;
 
 //Turret
-const turret_length = Math.min(top_shell_width, top_shell_length)-0.2;
-const turret_height = 3.0;
+const turret_length = Math.min(top_shell_width, top_shell_length);
+const turret_height = 1.5;
+
+const front_turret_length = turret_length;
+const front_turret_height = turret_height;
+const back_turret_length = 1.0;
+const back_turret_height = turret_height;
 
 //Canon
 const canon_length = 5.0;
@@ -73,7 +78,7 @@ const canon_x_min = 40;
 const canon_x = 0.5;
 
 //Tank
-let tank_pos = [0.0,(wheel_length*tank_scale)/2.0 + 0.19*(wheel_length*tank_scale),0.0];
+let tank_pos = [0.0,wheel_length/2.0 + 0.19*wheel_length,0.0];
 
 //Projectiles
 let mModelView;
@@ -170,20 +175,17 @@ function setup(shaders)
                 projectiles.push({
                     "pos": pos_final,
                     "velocity": vel_final});
-                console.log(projectiles[projectiles.length-1]);
                 break;
             case 'ArrowUp':
                 if(tank_pos[0] < (nTiles/2 - wheel_y_distance*nWheels/2.0)){
                     tank_pos[0] += distance;
                     wheel_angle -= angle_travel;
-                    console.log(wheel_angle);
                 }
                 break;
             case 'ArrowDown':
                 if(tank_pos[0] > (-nTiles/2 + wheel_y_distance*nWheels/2.0 )){
                     tank_pos[0] -= distance;
                     wheel_angle += angle_travel;
-                    console.log(wheel_angle);
                 }
                 break;
             case '1':
@@ -237,7 +239,7 @@ function setup(shaders)
         aspect = canvas.width / canvas.height;
 
         gl.viewport(0,0,canvas.width, canvas.height);
-        mProjection = ortho(-camera_distance*aspect,camera_distance*aspect, -camera_distance, camera_distance,-5*camera_distance,5*camera_distance);
+        mProjection = ortho(-camera_distance*aspect,camera_distance*aspect, -camera_distance, camera_distance,-3*camera_distance,3*camera_distance);
     }
 
     function uploadModelView()
@@ -300,7 +302,7 @@ function setup(shaders)
         gl.uniform3fv(gl.getUniformLocation(program, "uColor"), flatten(vec3(0.09,0.09,0.09))); 
         for(let i = -nWheels/2; i < nWheels/2; i++){
             pushMatrix();
-                multTranslation([i*wheel_y_distance+wheel_y_distance/2.0, 0.0 ,0.0]);
+                multTranslation([i*wheel_y_distance+wheel_y_distance/2.0,0.0,0.0]);
                 multRotationX(90.0);
                 WheelAndAxis();
             popMatrix();
@@ -363,7 +365,6 @@ function setup(shaders)
     function Projectile(pos){
 
         multTranslation(pos);
-
         multScale([projectile_radious,projectile_radious,projectile_radious]);
 
         uploadModelView();
@@ -423,20 +424,32 @@ function setup(shaders)
     function Turret(){
         gl.uniform3fv(gl.getUniformLocation(program, "uColor"), flatten(vec3(0.5,0.2,0.7)));
 
-        multTranslation([final_top_shell_x_offset,(base_height/2.0)+top_shell_height,0.0]);
+        multTranslation([final_top_shell_x_offset,(top_shell_height+turret_height)/2.0,0.0]);
         multRotationY(canon_ry);
         
         pushMatrix();
+            multTranslation([0.0,0.0,turret_length/2.0]);
+            multRotationY(180);
             multScale([turret_length, turret_height, turret_length]);
 
             uploadModelView();
 
-            SPHERE.draw(gl, program, mode);
+            PRISM.draw(gl, program, mode);
+        popMatrix();
+
+        pushMatrix();
+            multTranslation([0.0,0.0,-turret_length/2.0]);
+            multScale([turret_length, turret_height, turret_length]);
+
+            uploadModelView();
+
+            CUBE.draw(gl, program, mode);
         popMatrix();
 
         pushMatrix();
             gl.uniform3fv(gl.getUniformLocation(program, "uColor"), flatten(vec3(0.0,0.1,0.8)));
             multTranslation([0.0,top_shell_height,0.0]);
+            multScale([1.0, turret_height, 1.0]);
 
             uploadModelView();
 
@@ -466,27 +479,26 @@ function setup(shaders)
         multTranslation([0.0, base_height/2.0, 0.0]);
         pushMatrix();
             Base();
+        multTranslation([0.0, base_height, 0.0]);
         pushMatrix();
             Turret();
         popMatrix();
     }
 
     function Tank(){
+        multTranslation(tank_pos);
+        multScale([tank_scale,tank_scale,tank_scale]);
         pushMatrix();
-            multTranslation(tank_pos);
-            multScale([tank_scale,tank_scale,tank_scale]);
-            pushMatrix();
-                Wheels();
-            popMatrix();
-            pushMatrix();
-                Body();
-            popMatrix();
+            Wheels();
+        popMatrix();
+        pushMatrix();
+            Body();
         popMatrix();
     }
 
     function Tile(x,z){
+        multTranslation([x*cube_length + cube_length/2, -cube_height/2.0, z*cube_length+ cube_length/2]);
         multScale([cube_length,cube_height,cube_length]);
-        multTranslation([x*cube_length + cube_length/2,-cube_length/2.0,z*cube_length+ cube_length/2]);
         
         uploadModelView();
 
@@ -525,14 +537,15 @@ function setup(shaders)
         pushMatrix();
             TileMap();
         popMatrix();
-
         pushMatrix();
             Tank();
         popMatrix();
         pushMatrix();
             Projectiles();
         popMatrix();
-
+        /*pushMatrix();
+            Projectile([0.0,0.0,0.0]);
+        popMatrix();*/
     }
 }
 
