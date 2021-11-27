@@ -1,5 +1,5 @@
 import { buildProgramFromSources, loadShadersFromURLS, setupWebGL } from "../../libs/utils.js";
-import { ortho, lookAt, flatten, vec3, vec4, add, mult, subtract, normalize, inverse} from "../../libs/MV.js";
+import { ortho, lookAt, flatten, vec3, vec4, add, mult, subtract, normalize, inverse, normalMatrix, scale} from "../../libs/MV.js";
 import {modelView, loadMatrix, multMatrix, multRotationY, multScale, pushMatrix, popMatrix, multTranslation, multRotationX, multRotationZ} from "../../libs/stack.js";
 
 import * as SPHERE from '../../libs/sphere.js';
@@ -17,44 +17,44 @@ let mode;            // Drawing mode (gl.LINES or gl.TRIANGLES)
 let animation = true;   // Animation is running
 
 //---Tilemap---
-const LIGHT = vec3(58/255,76/255,58/255);
-const DARK = vec3(38/255,56/255,36/255);
-const nTiles = 30.0;
+const LIGHT = vec3(200/255,200/255,200/255);
+const DARK = vec3(30/255,30/255,30/255);
+const nTiles = 50.0;
 const cube_length = 1.0;
 const cube_height = cube_length/6.0;
 
 //---Tank---
 
+const tank_scale = 1.0;
 
 //Wheels
 const nWheels = 5;
-const wheel_length = 1.0;
+const wheel_length = 1.5;
 const alloy_length = 0.3;
 const alloy_height = 0.7;
 
 const axis_length = wheel_length/3.0;
-const axis_height = 4;
+const axis_height = 4.0;
 
-var wheel_pos = 0.0;
 const wheel_x_distance = axis_height/2.0;
-const wheel_y_distance = 1.5;
+const wheel_y_distance = wheel_length+2*0.2*wheel_length+0.1;
 
-let distance = 0.01;
-const wheel_circunference = (2*wheel_length + 2*alloy_length) * Math.PI;
-const wheel_velocity = wheel_circunference / distance;
-
+var wheel_angle = 0.0;
+const distance = 0.01*tank_scale;
+const angle_travel = distance / 2*(wheel_length*tank_scale + 0.2*(wheel_length*tank_scale));
 
 //Body
 //Base
 const base_length = axis_height;
-const base_height = 1.0;
+const base_height = 1.0*(wheel_length+0.4*wheel_length)/2.0;
 const base_width = (nWheels)*wheel_y_distance+wheel_y_distance/2.0;
 
 const top_shell_length = base_length;
 const top_shell_height = 1.0;
 const top_shell_width = base_width/2;
-const top_shell_x_offset = -1.0;
-
+const top_shell_x_offset = -1.5;
+const final_top_shell_x_offset = Math.max(-((base_width/2.0)-(top_shell_width/2.0)),
+                                 Math.min(top_shell_x_offset,(base_width/2.0)-(top_shell_width/2.0)));
 
 const front_shell_length = (base_length-top_shell_length)/2.0;
 const front_shell_width = 1.0;
@@ -69,20 +69,21 @@ const canon_width = 0.5;
 let canon_rx = 90;
 let canon_ry = 90;
 const canon_x_max = 90;
-const canon_x_min = 60;
+const canon_x_min = 40;
 const canon_x = 0.5;
 
 //Tank
-let tank_pos = [0.0,wheel_length/2.0 + 0.19*wheel_length,0.0];
+let tank_pos = [0.0,(wheel_length*tank_scale)/2.0 + 0.19*(wheel_length*tank_scale),0.0];
 
 //Projectiles
 let mModelView;
 let mView;
+let worldCordinates;
 let projectiles = []; 
-const projectile_radious = 1.0;
-const accelaration = vec3(0.1, 0.1, 0.0);
-const init_speed = vec3(1/1000, 1/1000, 0.0);
-const init_pos = vec3(canon_length, 0.0, 0.0);
+const projectile_radious = canon_width*tank_scale;
+const velocity = 8.0*tank_scale;
+const gravity = 9.88;
+const accelaration = vec4(0.0, -gravity, 0.0, 0.0);
 
 //Camera
 let camera_distance = 7.0;
@@ -108,6 +109,10 @@ let CAMERA_POS ={
         "at": [0.0,0.0,0.0],
         "up": [0.0,1.0,0.0]
     }
+}
+
+function degrees(radians){
+    return radians*180/Math.PI;
 }
 
 function updateCameraEye(new_value){
@@ -139,7 +144,6 @@ function setup(shaders)
             case 'w':
                 if(canon_rx > canon_x_min)
                     canon_rx--;
-                console.log(canon_rx);
                 break;
             case 'W':
                 mode = gl.LINES;
@@ -147,7 +151,6 @@ function setup(shaders)
             case 's':
                 if(canon_rx < canon_x_max)
                     canon_rx++;
-                console.log(canon_rx);
                 break;
             case 'S':
                 mode = gl.TRIANGLES;
@@ -159,20 +162,28 @@ function setup(shaders)
                 canon_ry--;
                 break;
             case ' ':
+                const pos = vec4(0.0,canon_length,0.0,1.0)
+                const pos_final = mult(worldCordinates, pos);
+                
+                const vel = vec4(0.0,velocity,0.0,0.0);
+                const vel_final = mult(normalMatrix(worldCordinates), vel);
                 projectiles.push({
-                    "pos": mult(mult(inverse(mView), mModelView), vec4(0.0,canon_length+0.9,0.0,1.0)),
-                    "velocity": vec3(0.0,0.0,0.0)});
+                    "pos": pos_final,
+                    "velocity": vel_final});
+                console.log(projectiles[projectiles.length-1]);
                 break;
             case 'ArrowUp':
                 if(tank_pos[0] < (nTiles/2 - wheel_y_distance*nWheels/2.0)){
                     tank_pos[0] += distance;
-                    wheel_pos -= wheel_velocity;
+                    wheel_angle -= angle_travel;
+                    console.log(wheel_angle);
                 }
                 break;
             case 'ArrowDown':
                 if(tank_pos[0] > (-nTiles/2 + wheel_y_distance*nWheels/2.0 )){
                     tank_pos[0] -= distance;
-                    wheel_pos += wheel_velocity;
+                    wheel_angle += angle_travel;
+                    console.log(wheel_angle);
                 }
                 break;
             case '1':
@@ -273,7 +284,7 @@ function setup(shaders)
     }
 
     function WheelAndAxis(){
-        multRotationY(wheel_pos);
+        multRotationY(degrees(wheel_angle));
         pushMatrix();
             SingleWheel(-wheel_x_distance);
         popMatrix();
@@ -327,11 +338,11 @@ function setup(shaders)
             popMatrix();
             
             pushMatrix();
-                Capot([(3.0*top_shell_width/4.0) - top_shell_x_offset/2.0, 0.0, 0.0], -90, [top_shell_length + wheel_length/2.0, top_shell_height,(base_width-top_shell_width)/2.0 - top_shell_x_offset]);
+                Capot([(3.0*top_shell_width/4.0) - final_top_shell_x_offset/2.0, 0.0, 0.0], -90, [top_shell_length + wheel_length/2.0, top_shell_height,(base_width-top_shell_width)/2.0 - final_top_shell_x_offset]);
             popMatrix();
 
             pushMatrix();
-                Capot([-(3.0*top_shell_width/4.0) - top_shell_x_offset/2.0, 0.0, 0.0], 90, [top_shell_length + wheel_length/2.0, top_shell_height,(base_width-top_shell_width)/2.0 + top_shell_x_offset]);
+                Capot([-(3.0*top_shell_width/4.0) - final_top_shell_x_offset/2.0, 0.0, 0.0], 90, [top_shell_length + wheel_length/2.0, top_shell_height,(base_width-top_shell_width)/2.0 + final_top_shell_x_offset]);
             popMatrix();
 
             popMatrix();
@@ -343,7 +354,7 @@ function setup(shaders)
         pushMatrix();
             BottomBase();
         popMatrix();
-        multTranslation([top_shell_x_offset,(base_height+top_shell_height)/2.0,0.0]);
+        multTranslation([final_top_shell_x_offset,(base_height+top_shell_height)/2.0,0.0]);
         pushMatrix();
             TopBase();
         popMatrix();
@@ -362,14 +373,22 @@ function setup(shaders)
 
     function Projectiles(){
         gl.uniform3fv(gl.getUniformLocation(program, "uColor"), flatten(vec3(0.0,0.0,0.0)));
-        //multTranslation([(projectile_radious)-(canon_length/2.0),0.0,0.0]);
-        projectiles.forEach(projectile => {
+        for(let i = 0; i < projectiles.length; i++){
+            let projectile = projectiles[i];
+            projectile["velocity"] = add(projectile["velocity"], scale(speed, accelaration));
+
+            projectile["pos"] = add(projectile["pos"], add(scale(0.5*speed*speed, accelaration),scale(speed, projectile["velocity"])));
             const pos = [projectile["pos"][0], projectile["pos"][1], projectile["pos"][2]];
-            console.log(pos);
-            pushMatrix();
+
+            if(pos[1] >= 0.0){
+                pushMatrix();
                 Projectile(pos);
-            popMatrix();
-        });
+                popMatrix();
+            }
+            else{
+                projectiles.splice(i,1);
+            }
+        }
     }
 
     function Canon(pos){
@@ -404,7 +423,7 @@ function setup(shaders)
     function Turret(){
         gl.uniform3fv(gl.getUniformLocation(program, "uColor"), flatten(vec3(0.5,0.2,0.7)));
 
-        multTranslation([top_shell_x_offset,(base_height/2.0)+top_shell_height,0.0]);
+        multTranslation([final_top_shell_x_offset,(base_height/2.0)+top_shell_height,0.0]);
         multRotationY(canon_ry);
         
         pushMatrix();
@@ -426,17 +445,15 @@ function setup(shaders)
         
         multTranslation([0.0,canon_width/2.0,0.0]);
 
-        
 
         pushMatrix();
             multRotationX(canon_rx);
             
             //Saves last modelview matrix
             mModelView = modelView();
+            worldCordinates = mult(inverse(mView), mModelView);
 
             multTranslation([0.0,canon_length/2.0,0.0]);
-            
-            
 
             Canon([0.0,0.0,0.0]);
             //Canon([-canon_x,0.0,0.0])
@@ -457,6 +474,7 @@ function setup(shaders)
     function Tank(){
         pushMatrix();
             multTranslation(tank_pos);
+            multScale([tank_scale,tank_scale,tank_scale]);
             pushMatrix();
                 Wheels();
             popMatrix();
@@ -507,6 +525,7 @@ function setup(shaders)
         pushMatrix();
             TileMap();
         popMatrix();
+
         pushMatrix();
             Tank();
         popMatrix();
