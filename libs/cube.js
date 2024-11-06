@@ -1,12 +1,12 @@
 /**
- * prism.js
+ * cube.js
  * 
  */ 
 export {
     init, draw
 }
 
-import { vec3, flatten } from './libs/MV.js';
+import { vec3, flatten } from './MV.js';
 
 const vertices = [
     vec3(-0.5, -0.5, +0.5),     // 0
@@ -15,8 +15,8 @@ const vertices = [
     vec3(-0.5, +0.5, +0.5),     // 3
     vec3(-0.5, -0.5, -0.5),     // 4
     vec3(+0.5, -0.5, -0.5),     // 5
-    //vec3(+0.5, +0.5, -0.5),     // 6
-    //vec3(-0.5, +0.5, -0.5)      // 7
+    vec3(+0.5, +0.5, -0.5),     // 6
+    vec3(-0.5, +0.5, -0.5)      // 7
 ];
 
 const points = [];
@@ -37,10 +37,11 @@ function init(gl) {
 function _build()
 {
     _addFace(0,1,2,3,vec3(0,0,1));
-    _addFace(0,4,5,1,vec3(0,-1,0));
-    _addSide(1,2,5,vec3(1,0,0));
-    _addSide(0,3,4,vec3(-1,0,0));
-    _addFace(2,3,4,5,vec3(0,1,-1));
+    _addFace(1,5,6,2,vec3(1,0,0));
+    _addFace(4,7,6,5,vec3(0,0,-1));
+    _addFace(0,3,7,4,vec3(-1,0,0));
+    _addFace(3,2,6,7,vec3(0,1,0));
+    _addFace(0,4,5,1,vec3(0,-1,0));    
 }
 
 function _uploadData(gl)
@@ -102,30 +103,6 @@ function _addFace(a, b, c, d, n)
     faces.push(offset);
     faces.push(offset+2);
     faces.push(offset+3);
-    
-    // Add first edge (a,b)
-    edges.push(offset);
-    edges.push(offset+1);
-    
-    // Add second edge (b,c)
-    edges.push(offset+1);
-    edges.push(offset+2);
-}
-
-function _addSide(a, b, c, n)
-{
-    const offset = points.length;
-    
-    points.push(vertices[a]);
-    points.push(vertices[b]);
-    points.push(vertices[c]);
-    for(let i=0; i<3; i++)
-        normals.push(n);
-    
-    // Add triangular faces (a,b,c)
-    faces.push(offset);
-    faces.push(offset+1);
-    faces.push(offset+2);
     
     // Add first edge (a,b)
     edges.push(offset);
